@@ -334,8 +334,8 @@ const firebaseConfig = {
             }
           `;
 
-          // 更新為 v1 正式版端點，並維持模型名稱穩定
-          const response = await fetch(`https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key=${activeApiKey}`, {
+          // 改回穩定相容度最高的 v1beta，避免 v1 的格式驗證衝突
+          const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${activeApiKey}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
@@ -353,11 +353,19 @@ const firebaseConfig = {
           });
 
           if (!response.ok) {
-            // 增強錯誤提示，精確攔截金鑰混淆問題
-            if (response.status === 400) throw new Error("API 金鑰無效或格式錯誤。");
-            if (response.status === 403) throw new Error("權限遭拒 (403)。請確認填寫的是從 Google AI Studio 申請的 Gemini 金鑰，而非 Firebase 金鑰。");
-            if (response.status === 404) throw new Error("找不到資源 (404)。🚨這通常是因為混用了 Firebase 金鑰。請確認設定頁面填寫的是 aistudio.google.com 發行的全新金鑰！");
-            throw new Error(`API 請求失敗狀態碼: ${response.status}`);
+            let errorDetail = "";
+            try {
+              const errorData = await response.json();
+              errorDetail = errorData.error?.message || JSON.stringify(errorData);
+            } catch (e) {
+              errorDetail = "無法解析伺服器錯誤訊息";
+            }
+            
+            // 將真實錯誤訊息拋出，幫助精確除錯
+            if (response.status === 400) throw new Error(`請求被拒絕 (400)。請確認金鑰未夾帶空白。伺服器回應：${errorDetail}`);
+            if (response.status === 403) throw new Error(`權限遭拒 (403)。伺服器回應：${errorDetail}`);
+            if (response.status === 404) throw new Error(`找不到資源 (404)。伺服器回應：${errorDetail}`);
+            throw new Error(`API 請求失敗狀態碼 ${response.status}: ${errorDetail}`);
           }
 
           const data = await response.json();
@@ -521,7 +529,7 @@ const firebaseConfig = {
                   <Utensils className="w-5 h-5 text-emerald-600" />
                   飲食紀錄 
                   <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-medium ml-1">專屬雲端免安裝版</span>
-                  <span className="text-[10px] text-gray-300 ml-1">v1.2</span>
+                  <span className="text-[10px] text-gray-300 ml-1">v1.3</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
