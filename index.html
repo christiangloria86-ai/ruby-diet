@@ -10,8 +10,9 @@
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="飲食紀錄">
-  <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><rect width='200' height='200' fill='%2310B981'/><text x='50%' y='54%' font-size='100' dominant-baseline='middle' text-anchor='middle'>🥗</text></svg>">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 200'><rect width='200' height='200' rx='40' fill='%2310B981'/><text x='50%' y='54%' font-size='100' dominant-baseline='middle' text-anchor='middle'>🥗</text></svg>">
+  <!-- 將 SVG 圖示進行 URL 安全編碼，避免 iOS 解析崩潰 -->
+  <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20200%22%3E%3Crect%20width%3D%22200%22%20height%3D%22200%22%20fill%3D%22%2310B981%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2254%25%22%20font-size%3D%22100%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%3E%F0%9F%A5%97%3C%2Ftext%3E%3C%2Fsvg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20200%20200%22%3E%3Crect%20width%3D%22200%22%20height%3D%22200%22%20rx%3D%2240%22%20fill%3D%22%2310B981%22%2F%3E%3Ctext%20x%3D%2250%25%22%20y%3D%2254%25%22%20font-size%3D%22100%22%20dominant-baseline%3D%22middle%22%20text-anchor%3D%22middle%22%3E%F0%9F%A5%97%3C%2Ftext%3E%3C%2Fsvg%3E">
 
   <!-- 載入 Tailwind CSS 樣式 -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -38,6 +39,16 @@
   <!-- React 應用程式的掛載點 -->
   <div id="root"></div>
 
+  <!-- 全域白畫面防護網：捕捉所有致命錯誤並顯示於畫面上 -->
+  <script>
+    window.addEventListener('error', function(e) {
+      const root = document.getElementById('root');
+      if (root) {
+        root.innerHTML = '<div style="padding:20px;color:#b91c1c;background:#fef2f2;border-radius:12px;margin:20px;font-family:sans-serif;box-shadow:0 4px 6px -1px rgb(0 0 0 / 0.1);"> <h3 style="font-weight:bold;margin-bottom:8px;">⚠️ 網頁載入發生異常</h3> <p style="font-size:14px;margin-bottom:12px;">這通常是因為 iOS 系統的隱私設定阻擋了資料存取，或是網路不穩導致套件載入失敗。</p> <p style="font-size:12px;color:#7f1d1d;background:#fee2e2;padding:8px;border-radius:8px;word-break:break-all;">錯誤細節: ' + e.message + '</p> </div>';
+      }
+    });
+  </script>
+
   <!-- 主要程式碼區塊 -->
   <script type="text/babel" data-type="module">
     import React, { useState, useRef, useEffect, useMemo } from 'react';
@@ -47,22 +58,32 @@
     import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
     import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
+    // --- 安全的本地儲存存取器 (防範 iOS Standalone 拋出 SecurityError 導致死機) ---
+    const safeStorage = {
+      get: (key) => {
+        try { return localStorage.getItem(key); } catch (e) { return null; }
+      },
+      set: (key, value) => {
+        try { localStorage.setItem(key, value); } catch (e) { console.warn('LocalStorage 被系統阻擋', e); }
+      }
+    };
+
+    // --- 取得本地時區的正確日期字串 ---
+    const getLocalISODate = () => {
+      const d = new Date();
+      d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+      return d.toISOString().split('T')[0];
+    };
+
+// --- ⚠️ 記得放回你真實的 Firebase 設定 ⚠️ ---
 const firebaseConfig = {
-
   apiKey: "AIzaSyAHyp0MZYzjLGI9GM2rSu-HromoUPM_ims",
-
   authDomain: "diet-app-ruby.firebaseapp.com",
-
   projectId: "diet-app-ruby",
-
   storageBucket: "diet-app-ruby.firebasestorage.app",
-
   messagingSenderId: "1020331366124",
-
   appId: "1:1020331366124:web:b97c6907e5d847c698b7c9",
-
   measurementId: "G-W77JSCS267"
-
 };
 
     const app = initializeApp(firebaseConfig);
@@ -75,14 +96,14 @@ const firebaseConfig = {
     function App() {
       const [activeTab, setActiveTab] = useState('record');
       const [user, setUser] = useState(null);
-      const [dbError, setDbError] = useState(''); // 新增：資料庫連線錯誤狀態
+      const [dbError, setDbError] = useState(''); 
       
       // 自訂 API Key 狀態
       const [customApiKey, setCustomApiKey] = useState('');
       
       // 上下文狀態
       const [person, setPerson] = useState('Ruby');
-      const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
+      const [date, setDate] = useState(getLocalISODate());
       const [meal, setMeal] = useState('午餐'); 
 
       // Token 消耗追蹤狀態
@@ -91,16 +112,18 @@ const firebaseConfig = {
 
       // 初始化 localStorage 的資料 (Token 與 API Key)
       useEffect(() => {
-        const todayStr = new Date().toISOString().split('T')[0];
-        const storedData = JSON.parse(localStorage.getItem('dietTrackerTokenUsage') || '{}');
+        const todayStr = getLocalISODate();
+        const storedStr = safeStorage.get('dietTrackerTokenUsage');
+        const storedData = storedStr ? JSON.parse(storedStr) : {};
+        
         if (storedData.date === todayStr) {
           setTokenUsage(storedData.usage || 0);
         } else {
-          localStorage.setItem('dietTrackerTokenUsage', JSON.stringify({ date: todayStr, usage: 0 }));
+          safeStorage.set('dietTrackerTokenUsage', JSON.stringify({ date: todayStr, usage: 0 }));
           setTokenUsage(0);
         }
 
-        const savedApiKey = localStorage.getItem('dietTrackerApiKey');
+        const savedApiKey = safeStorage.get('dietTrackerApiKey');
         if (savedApiKey) {
           setCustomApiKey(savedApiKey);
         }
@@ -108,7 +131,7 @@ const firebaseConfig = {
 
       const handleSaveApiKey = (key) => {
         setCustomApiKey(key);
-        localStorage.setItem('dietTrackerApiKey', key);
+        safeStorage.set('dietTrackerApiKey', key);
       };
 
       // --- Firebase 身分驗證初始化 (匿名登入) ---
@@ -340,8 +363,8 @@ const firebaseConfig = {
             const usedTokens = data.usageMetadata.totalTokenCount || 0;
             setTokenUsage(prev => {
               const newUsage = prev + usedTokens;
-              const todayStr = new Date().toISOString().split('T')[0];
-              localStorage.setItem('dietTrackerTokenUsage', JSON.stringify({ date: todayStr, usage: newUsage }));
+              const todayStr = getLocalISODate();
+              safeStorage.set('dietTrackerTokenUsage', JSON.stringify({ date: todayStr, usage: newUsage }));
               return newUsage;
             });
           }
@@ -684,7 +707,7 @@ const firebaseConfig = {
                     )}
                   </div>
 
-                  {/* 新增同步儲存按鈕 */}
+                  {/* 同步儲存按鈕 */}
                   <button
                     onClick={saveProfilesToCloud}
                     className="w-full mt-4 py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
@@ -695,3 +718,374 @@ const firebaseConfig = {
                 </div>
               </div>
             ) : (
+              <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
+                <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100">
+                  
+                  <div className="flex bg-gray-100 p-1 rounded-xl mb-4">
+                    <button
+                      onClick={() => setPerson('Ruby')}
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${person === 'Ruby' ? 'bg-white shadow-sm text-emerald-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      Ruby
+                    </button>
+                    <button
+                      onClick={() => setPerson('佑霖')}
+                      className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all ${person === '佑霖' ? 'bg-white shadow-sm text-blue-600' : 'text-gray-500 hover:text-gray-700'}`}
+                    >
+                      佑霖
+                    </button>
+                  </div>
+
+                  <div className="flex flex-col gap-4">
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                        <Calendar className="w-3 h-3" /> 日期
+                      </label>
+                      <input
+                        type="date"
+                        value={date}
+                        onChange={(e) => setDate(e.target.value)}
+                        className="w-full p-2 text-sm border border-gray-200 rounded-xl focus:ring-2 focus:ring-emerald-500 outline-none bg-gray-50"
+                      />
+                    </div>
+                    
+                    <div>
+                      <label className="block text-xs font-medium text-gray-500 mb-1.5 flex items-center gap-1">
+                        <Clock className="w-3 h-3" /> 餐別
+                      </label>
+                      <div className="flex bg-gray-100 p-1 rounded-xl">
+                        {['早餐', '午餐', '晚餐', '點心'].map((m) => (
+                          <button
+                            key={m}
+                            onClick={() => setMeal(m)}
+                            className={`flex-1 py-1.5 rounded-lg text-sm font-medium transition-all ${meal === m ? 'bg-white shadow-sm text-gray-800' : 'text-gray-500'}`}
+                          >
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100">
+                  <div className="flex justify-between items-center mb-5">
+                    <div className="text-center flex-1">
+                      <p className="text-sm text-gray-500 mb-1">總攝取熱量</p>
+                      <p className="text-3xl font-bold text-gray-800">{totalCalories}<span className="text-base font-normal text-gray-500 ml-1">kcal</span></p>
+                    </div>
+                    <div className="h-12 w-px bg-gray-200"></div>
+                    <div className="text-center flex-1">
+                      <p className="text-sm text-gray-500 mb-1">總蛋白質</p>
+                      <p className={`text-3xl font-bold ${person === 'Ruby' ? 'text-emerald-600' : 'text-blue-600'}`}>{Math.round(totalProtein * 10)/10}<span className="text-base font-normal text-gray-500 ml-1">g</span></p>
+                    </div>
+                  </div>
+
+                  <div className="border-t border-gray-100 pt-4">
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-xs font-medium text-gray-500">每日目標: {targetData.target} kcal</span>
+                      <span className={`text-xs font-bold ${totalCalories > targetData.target ? 'text-red-500' : 'text-gray-700'}`}>
+                        {totalCalories > targetData.target ? `已超標 ${totalCalories - targetData.target} kcal` : `剩餘可吃 ${targetData.target - totalCalories} kcal`}
+                      </span>
+                    </div>
+                    <div className="h-2.5 w-full bg-gray-100 rounded-full overflow-hidden flex">
+                      <div 
+                        className={`h-full transition-all duration-500 ${totalCalories > targetData.target ? 'bg-red-500' : person === 'Ruby' ? 'bg-emerald-400' : 'bg-blue-400'}`}
+                        style={{ width: `${Math.min((totalCalories / targetData.target) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-2xl p-6 shadow-sm border border-gray-100 relative overflow-hidden">
+                  {!currentImage && !pendingItem && (
+                     <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
+                       <User className="w-24 h-24" />
+                     </div>
+                  )}
+
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    ref={fileInputRef}
+                    onChange={handleImageUpload}
+                  />
+                  
+                  {!currentImage && !pendingItem && !isAnalyzing && (
+                    <div className="flex flex-col gap-3 relative z-10">
+                      <button 
+                        onClick={() => fileInputRef.current?.click()}
+                        className="w-full py-8 border-2 border-dashed border-gray-300 rounded-xl flex flex-col items-center justify-center text-gray-500 hover:bg-gray-50 hover:border-emerald-500 transition-colors"
+                      >
+                        <Camera className="w-8 h-8 mb-2 text-gray-400" />
+                        <span className="font-medium">上傳照片至【{meal}】</span>
+                        <span className="text-xs text-gray-400 mt-2">AI 將自動解析熱量與蛋白質</span>
+                      </button>
+                      <button
+                        onClick={handleManualEntry}
+                        className="w-full py-3.5 border border-gray-200 rounded-xl flex items-center justify-center gap-2 text-gray-600 hover:bg-gray-50 transition-colors bg-white shadow-sm"
+                      >
+                        <Edit2 className="w-4 h-4" />
+                        <span className="font-medium text-sm">直接手動輸入營養素</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {currentImage && !isAnalyzing && !pendingItem && (
+                    <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+                      <div className="relative h-48 rounded-xl overflow-hidden bg-gray-100">
+                        <img src={currentImage} alt="Preview" className="w-full h-full object-cover" />
+                        <div className="absolute top-2 left-2 flex gap-1">
+                           <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">{person}</span>
+                           <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">{meal}</span>
+                        </div>
+                      </div>
+
+                      <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
+                        <label className="block text-sm font-bold text-emerald-800 mb-2 flex items-center gap-1">
+                           <Edit2 className="w-4 h-4" /> 補充說明 (選填)
+                        </label>
+                        <textarea
+                          value={userContext}
+                          onChange={(e) => setUserContext(e.target.value)}
+                          placeholder="例如：我只吃了4/10、這是13吋的披薩..."
+                          className="w-full p-3 bg-white border border-emerald-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none text-sm resize-none"
+                          rows="3"
+                        />
+                      </div>
+
+                      <div className="flex gap-3 pt-2">
+                        <button
+                          onClick={() => { setCurrentImage(null); setUserContext(''); if (fileInputRef.current) fileInputRef.current.value = ''; }}
+                          className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-lg font-medium hover:bg-gray-200 flex items-center justify-center gap-2"
+                        >
+                          <X className="w-4 h-4" /> 重新選擇
+                        </button>
+                        <button
+                          onClick={analyzeImage}
+                          className="flex-1 py-2.5 bg-emerald-600 text-white rounded-lg font-bold hover:bg-emerald-700 flex items-center justify-center gap-2 shadow-sm transition-colors"
+                        >
+                          <Camera className="w-4 h-4" /> 開始 AI 辨識
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {isAnalyzing && (
+                    <div className="py-12 flex flex-col items-center justify-center">
+                      <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+                      <p className="text-gray-600 font-medium">AI 正在分析食物成分...</p>
+                    </div>
+                  )}
+
+                  {errorMsg && (
+                    <div className="mt-4 p-4 bg-red-50 text-red-700 rounded-xl flex items-start gap-3 border border-red-100">
+                      <AlertCircle className="w-5 h-5 shrink-0 mt-0.5" />
+                      <div>
+                        <p className="font-medium text-sm">辨識發生錯誤</p>
+                        <p className="text-xs mt-1 opacity-80">{errorMsg}</p>
+                      </div>
+                    </div>
+                  )}
+
+                  {pendingItem && !isAnalyzing && (
+                    <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+                      {pendingItem.image ? (
+                        <div className="relative h-48 rounded-xl overflow-hidden bg-gray-100">
+                          <img src={currentImage} alt="Uploaded food" className="w-full h-full object-cover" />
+                          <div className="absolute top-2 left-2 flex gap-1">
+                             <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">{person}</span>
+                             <span className="bg-black/60 text-white text-xs px-2 py-1 rounded-md backdrop-blur-sm">{meal}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 border border-gray-100 h-24 rounded-xl flex flex-col items-center justify-center relative">
+                           <Edit2 className="w-6 h-6 text-gray-400 mb-1" />
+                           <span className="text-sm font-medium text-gray-500">手動建立紀錄</span>
+                           <div className="absolute top-2 left-2 flex gap-1">
+                             <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-md font-medium">{person}</span>
+                             <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-md font-medium">{meal}</span>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {pendingItem.image && (
+                        <div className="bg-emerald-50 text-emerald-800 p-3 rounded-lg text-sm flex gap-2 items-start">
+                          <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                          <div>
+                            <p className="font-medium">AI 估算依據</p>
+                            <p className="text-xs opacity-90 mt-0.5">{pendingItem.reasoning}</p>
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="space-y-3">
+                        {pendingItem.items.map((item, index) => (
+                          <div key={item.id} className="bg-gray-50 p-3 rounded-xl border border-gray-100 relative group">
+                            {pendingItem.items.length > 1 && (
+                              <button 
+                                onClick={() => removePendingItem(item.id)}
+                                className="absolute -top-2 -right-2 bg-red-100 text-red-600 p-1 rounded-full shadow-sm hover:bg-red-200"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
+                            <div className="mb-2">
+                              <label className="block text-xs font-bold text-gray-600 mb-1 flex items-center gap-1">
+                                <Edit2 className="w-3 h-3" /> 品項 {index + 1}
+                              </label>
+                              <input 
+                                type="text" 
+                                value={item.name}
+                                placeholder="例如：御飯糰"
+                                onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
+                                className="w-full p-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-gray-800"
+                              />
+                            </div>
+                            <div className="grid grid-cols-3 gap-2">
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 mb-1">重量 (g)</label>
+                                <input 
+                                  type="number" 
+                                  value={item.weight}
+                                  placeholder="0"
+                                  onChange={(e) => handleItemChange(item.id, 'weight', e.target.value)}
+                                  className="w-full p-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-gray-800"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 mb-1">熱量 (kcal)</label>
+                                <input 
+                                  type="number" 
+                                  value={item.calories}
+                                  placeholder="0"
+                                  onChange={(e) => handleItemChange(item.id, 'calories', e.target.value)}
+                                  className="w-full p-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-gray-800"
+                                />
+                              </div>
+                              <div>
+                                <label className="block text-[10px] font-bold text-gray-500 mb-1">蛋白質 (g)</label>
+                                <input 
+                                  type="number" 
+                                  value={item.protein}
+                                  placeholder="0"
+                                  onChange={(e) => handleItemChange(item.id, 'protein', e.target.value)}
+                                  className="w-full p-2 text-sm bg-white border border-gray-200 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-medium text-blue-600"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                      
+                      <button 
+                        onClick={addManualItem}
+                        className="w-full py-2 border border-dashed border-gray-300 rounded-lg text-sm text-gray-500 hover:bg-gray-50 hover:text-emerald-600 flex items-center justify-center gap-1"
+                      >
+                        <Plus className="w-4 h-4" /> 新增品項
+                      </button>
+
+                      <div className="flex gap-3 pt-2">
+                        <button 
+                          onClick={cancelItem}
+                          className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-lg font-medium hover:bg-gray-200 flex items-center justify-center gap-2"
+                        >
+                          <X className="w-4 h-4" /> 取消
+                        </button>
+                        <button 
+                          onClick={confirmItem}
+                          className="flex-1 py-2.5 bg-gray-800 text-white rounded-lg font-medium hover:bg-gray-900 flex items-center justify-center gap-2 shadow-md"
+                        >
+                          <Check className="w-4 h-4" /> 確認存入雲端
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3 pb-8">
+                  <div className="flex items-center justify-between bg-white p-2 rounded-xl shadow-sm border border-gray-100">
+                    <button 
+                      onClick={() => adjustDate(-1)} 
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+                    >
+                      <ChevronLeft className="w-5 h-5" />
+                    </button>
+                    <div className="text-center">
+                      <div className="text-sm font-bold text-gray-800">
+                        {date === getLocalISODate() ? '今天' : date}
+                      </div>
+                      <div className="text-[10px] text-gray-400 mt-0.5">{person} 的雲端紀錄</div>
+                    </div>
+                    <button 
+                      onClick={() => adjustDate(1)} 
+                      className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 transition-colors"
+                    >
+                      <ChevronRight className="w-5 h-5" />
+                    </button>
+                  </div>
+
+                  {!user && (
+                     <div className="py-8 text-center text-sm text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                      正在連線至雲端資料庫...
+                    </div>
+                  )}
+
+                  {user && filteredLog.length === 0 ? (
+                    <div className="py-8 text-center text-sm text-gray-400 bg-gray-50/50 rounded-xl border border-dashed border-gray-200">
+                      這天還沒有任何紀錄喔
+                    </div>
+                  ) : (
+                    filteredLog.map((entry) => {
+                      const entryCalories = entry.items.reduce((s, i) => s + Number(i.calories || 0), 0);
+                      const entryProtein = entry.items.reduce((s, i) => s + Number(i.protein || 0), 0);
+                      const itemNames = entry.items.map(i => i.name).join('、');
+                      
+                      return (
+                      <div key={entry.id} className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center gap-4 relative group">
+                        <button 
+                          onClick={() => deleteLog(entry.id)}
+                          className="absolute top-2 right-2 p-1.5 text-gray-300 hover:bg-red-50 hover:text-red-500 rounded-md opacity-0 group-hover:opacity-100 transition-all"
+                          title="刪除此紀錄"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                        <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-50 flex items-center justify-center border border-gray-100 relative">
+                          {entry.image ? (
+                            <img src={entry.image} alt="food" className="w-full h-full object-cover" />
+                          ) : (
+                            <Utensils className="w-6 h-6 text-gray-300" />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0 pr-6">
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className="text-[10px] font-medium bg-gray-100 text-gray-600 px-2 py-0.5 rounded shrink-0">
+                              {entry.meal}
+                            </span>
+                            <h4 className="font-medium text-gray-800 truncate text-sm">{itemNames || '未命名項目'}</h4>
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-gray-500">{entryCalories} kcal</span>
+                            <span className="text-blue-600">{Math.round(entryProtein * 10)/10}g 蛋白質</span>
+                          </div>
+                          <div className="text-xs text-gray-400 mt-1 truncate">
+                            {entry.items.map(i => `${i.name}(${i.weight}g)`).join(', ')}
+                          </div>
+                        </div>
+                      </div>
+                    )})
+                  )}
+                </div>
+              </div>
+            )}
+          </main>
+        </div>
+      );
+    }
+
+    const root = createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
