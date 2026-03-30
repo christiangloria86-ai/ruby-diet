@@ -39,16 +39,15 @@
     import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
     import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp } from 'firebase/firestore';
 
-    // --- Ruby 專屬的 Firebase 設定 ---
-    const firebaseConfig = {
-      apiKey: "AIzaSyAHyp0MZYzjLGI9GM2rSu-HromoUPM_ims",
-      authDomain: "diet-app-ruby.firebaseapp.com",
-      projectId: "diet-app-ruby",
-      storageBucket: "diet-app-ruby.firebasestorage.app",
-      messagingSenderId: "1020331366124",
-      appId: "1:1020331366124:web:b97c6907e5d847c698b7c9",
-      measurementId: "G-W77JSCS267"
-    };
+const firebaseConfig = {
+  apiKey: "AIzaSyAHyp0MZYzjLGI9GM2rSu-HromoUPM_ims",
+  authDomain: "diet-app-ruby.firebaseapp.com",
+  projectId: "diet-app-ruby",
+  storageBucket: "diet-app-ruby.firebasestorage.app",
+  messagingSenderId: "1020331366124",
+  appId: "1:1020331366124:web:b97c6907e5d847c698b7c9",
+  measurementId: "G-W77JSCS267"
+};
 
     const app = initializeApp(firebaseConfig);
     const auth = getAuth(app);
