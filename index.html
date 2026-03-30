@@ -154,11 +154,26 @@ const firebaseConfig = {
         return () => unsubscribe();
       }, [user]);
 
-      // 設定與其他狀態
-      const [profiles, setProfiles] = useState({
+      // --- 設定與其他狀態 (包含 LocalStorage 存取) ---
+      const defaultProfiles = {
         'Ruby': { gender: 'female', height: 160, weight: 50, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0 },
         '佑霖': { gender: 'male', height: 175, weight: 70, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0 }
+      };
+
+      const [profiles, setProfiles] = useState(() => {
+        try {
+          const savedProfiles = localStorage.getItem('dietTrackerProfiles');
+          return savedProfiles ? JSON.parse(savedProfiles) : defaultProfiles;
+        } catch (error) {
+          console.error("無法讀取設定檔", error);
+          return defaultProfiles;
+        }
       });
+
+      // 當設定數值改變時，自動同步到 LocalStorage
+      useEffect(() => {
+        localStorage.setItem('dietTrackerProfiles', JSON.stringify(profiles));
+      }, [profiles]);
 
       const [isAnalyzing, setIsAnalyzing] = useState(false);
       const [currentImage, setCurrentImage] = useState(null);
