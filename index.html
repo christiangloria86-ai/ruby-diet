@@ -60,6 +60,7 @@
     function App() {
       const [activeTab, setActiveTab] = useState('record');
       const [user, setUser] = useState(null);
+      const [dbError, setDbError] = useState(''); // 新增：資料庫連線錯誤狀態
       
       // 自訂 API Key 狀態
       const [customApiKey, setCustomApiKey] = useState('');
@@ -103,6 +104,7 @@
             await signInAnonymously(auth);
           } catch (error) {
             console.warn("Firebase Auth 未啟用，已自動切換為測試模式。如需正式使用，請至 Firebase 啟用「匿名登入 (Anonymous)」。", error);
+            setDbError("身分驗證連線失敗。若要跨裝置同步，請確認 Vercel 網址已加入 Firebase 授權網域。");
             setUser({ uid: 'local_test_user' });
             isMockUser = true;
           }
@@ -130,6 +132,7 @@
         const unsubscribe = onSnapshot(
           logsRef,
           (snapshot) => {
+            setDbError(''); // 讀取成功時清除錯誤
             const logsData = [];
             snapshot.forEach((doc) => {
               logsData.push({ id: doc.id, ...doc.data() });
@@ -145,6 +148,7 @@
           },
           (error) => {
             console.error("Firestore Listen Error:", error);
+            setDbError("讀取權限遭拒：" + error.message);
           }
         );
 
@@ -402,13 +406,14 @@
             creatorUid: user.uid
           });
 
+          setDbError(''); // 寫入成功時清除錯誤
           setPendingItem(null);
           setCurrentImage(null);
           setUserContext('');
           if (fileInputRef.current) fileInputRef.current.value = '';
         } catch (error) {
           console.error("Error adding document: ", error);
-          alert("儲存至雲端失敗，請稍後再試。");
+          setDbError("寫入權限遭拒：" + error.message);
         }
       };
 
@@ -418,6 +423,7 @@
           await deleteDoc(doc(db, 'diet_logs', logId));
         } catch (error) {
           console.error("Error deleting document: ", error);
+          setDbError("刪除權限遭拒：" + error.message);
         }
       };
 
@@ -468,7 +474,17 @@
           </header>
 
           <main className="max-w-md mx-auto p-4 space-y-5">
-            
+            {dbError && (
+              <div className="bg-red-50 p-4 rounded-xl border border-red-200 flex gap-3 text-red-700 animate-in fade-in zoom-in-95">
+                 <AlertCircle className="w-5 h-5 shrink-0" />
+                 <div className="text-sm">
+                    <p className="font-bold">資料庫連線異常</p>
+                    <p className="mt-1">{dbError}</p>
+                    <p className="mt-2 text-xs opacity-80">請至 Firebase 後台檢查「Authentication 授權網域」與「Firestore 安全規則」。</p>
+                 </div>
+              </div>
+            )}
+
             {activeTab === 'settings' ? (
               <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-5 animate-in fade-in zoom-in-95 duration-200">
                 
