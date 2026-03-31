@@ -168,6 +168,23 @@
         return () => unsubscribe();
       }, [user]);
 
+      // --- 建立歷史食物庫 (供自動帶入與選單使用) ---
+      const foodHistoryDB = useMemo(() => {
+        const history = {};
+        // dailyLog 已照時間排序 (舊->新)，後面的資料會覆蓋前面的，確保採用最新數據
+        dailyLog.forEach(log => {
+          log.items.forEach(item => {
+            if (item.name && item.baseCalPerG !== undefined) {
+              history[item.name.trim()] = {
+                baseCalPerG: item.baseCalPerG,
+                baseProPerG: item.baseProPerG
+              };
+            }
+          });
+        });
+        return history;
+      }, [dailyLog]);
+
       const defaultProfiles = {
         'Ruby': { gender: 'female', height: 160, weight: 50, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0, weightHistory: [] },
         '佑霖': { gender: 'male', height: 175, weight: 70, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0, weightHistory: [] }
@@ -182,7 +199,6 @@
         const unsubscribe = onSnapshot(profileDocRef, (docSnap) => {
           if (docSnap.exists()) {
              const data = docSnap.data();
-             // 確保舊資料也有 weightHistory 陣列
              if (!data['Ruby'].weightHistory) data['Ruby'].weightHistory = [];
              if (!data['佑霖'].weightHistory) data['佑霖'].weightHistory = [];
              setProfiles(data);
@@ -201,7 +217,6 @@
         } catch (error) { setDbError("設定同步失敗：" + error.message); setIsSavingProfiles(false); }
       };
 
-      // --- 體重追蹤紀錄操作 ---
       const addWeightLog = () => {
         const now = new Date();
         const dateStr = getLocalISODate();
@@ -432,6 +447,21 @@
             const updated = { ...item, [field]: value };
             if (value === '') return updated;
             
+            // 如果修改的是名稱，檢查歷史紀錄是否有符合的
+            if (field === 'name') {
+              const trimmedName = value.trim();
+              if (foodHistoryDB[trimmedName]) {
+                updated.baseCalPerG = foodHistoryDB[trimmedName].baseCalPerG;
+                updated.baseProPerG = foodHistoryDB[trimmedName].baseProPerG;
+                // 若重量欄位已有數字，順便套用歷史基準重算
+                if (updated.weight) {
+                  const currentW = Number(updated.weight);
+                  updated.calories = Math.round(updated.baseCalPerG * currentW);
+                  updated.protein = Math.round(updated.baseProPerG * currentW * 10) / 10;
+                }
+              }
+            }
+            
             const numVal = Number(value);
             if (field === 'weight' && item.baseCalPerG !== undefined) {
               updated.calories = Math.round(item.baseCalPerG * numVal);
@@ -528,6 +558,13 @@
 
       return (
         <div className="min-h-screen bg-gray-50 text-gray-800 font-sans pb-20">
+          {/* 提供歷史食物名稱的 DataList */}
+          <datalist id="food-history-list">
+            {Object.keys(foodHistoryDB).map(name => (
+              <option key={name} value={name} />
+            ))}
+          </datalist>
+
           <header className="bg-white shadow-sm p-4 sticky top-0 z-20">
             <div className="max-w-md mx-auto flex flex-col gap-3">
               <div className="flex justify-between items-center">
@@ -535,7 +572,7 @@
                   <Utensils className="w-5 h-5 text-emerald-600" />
                   飲食紀錄 
                   <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
-                  <span className="text-[10px] text-gray-300 ml-0.5">v1.7</span>
+                  <span className="text-[10px] text-gray-300 ml-0.5">v1.8</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
@@ -1040,8 +1077,9 @@
                               </label>
                               <input 
                                 type="text" 
+                                list="food-history-list"
                                 value={item.name}
-                                placeholder="例如：御飯糰"
+                                placeholder="輸入曾吃過的名稱可自動帶入數值"
                                 onChange={(e) => handleItemChange(item.id, 'name', e.target.value)}
                                 className="w-full p-2.5 text-sm bg-white border border-gray-300 rounded-lg focus:ring-2 focus:ring-emerald-500 outline-none font-bold text-gray-800"
                               />
@@ -1090,7 +1128,6 @@
                           <Plus className="w-4 h-4" /> 新增品項
                         </button>
                         
-                        {/* 需求 4：AI 估算缺失數值 */}
                         <button 
                           onClick={autoFillMissingMacros}
                           disabled={isAutoFilling}
@@ -1168,7 +1205,7 @@
                         onClick={() => setExpandedLogId(isExpanded ? null : entry.id)}
                         className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group cursor-pointer hover:border-emerald-200 transition-all"
                       >
-                        {/* 需求 3：複製給對方的按鈕 */}
+                        {/* 複製給對方的按鈕 */}
                         <div className="absolute top-3 right-3 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-all">
                            <button 
                              onClick={(e) => { e.stopPropagation(); handleCopyLog(entry); }}
