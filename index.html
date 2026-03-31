@@ -174,10 +174,22 @@
         // dailyLog 已照時間排序 (舊->新)，後面的資料會覆蓋前面的，確保採用最新數據
         dailyLog.forEach(log => {
           log.items.forEach(item => {
-            if (item.name && item.baseCalPerG !== undefined) {
-              history[item.name.trim()] = {
-                baseCalPerG: item.baseCalPerG,
-                baseProPerG: item.baseProPerG
+            if (item.name && item.name.trim()) {
+              const trimmedName = item.name.trim();
+              const w = Number(item.weight);
+              let bCal = item.baseCalPerG;
+              let bPro = item.baseProPerG;
+              
+              // 處理舊版手動輸入沒有 baseCalPerG 的資料 (溯及既往)
+              if (bCal === undefined || isNaN(bCal)) {
+                bCal = w > 0 ? (Number(item.calories) || 0) / w : 0;
+                bPro = w > 0 ? (Number(item.protein) || 0) / w : 0;
+              }
+
+              history[trimmedName] = {
+                baseCalPerG: bCal,
+                baseProPerG: bPro,
+                lastWeight: w > 0 ? w : 100 // 紀錄上次吃的重量供智慧預設使用
               };
             }
           });
@@ -453,7 +465,13 @@
               if (foodHistoryDB[trimmedName]) {
                 updated.baseCalPerG = foodHistoryDB[trimmedName].baseCalPerG;
                 updated.baseProPerG = foodHistoryDB[trimmedName].baseProPerG;
-                // 若重量欄位已有數字，順便套用歷史基準重算
+                
+                // 智慧預設：若重量為空，自動帶入上次紀錄的重量，讓數字直接浮現
+                if (!updated.weight) {
+                  updated.weight = foodHistoryDB[trimmedName].lastWeight;
+                }
+
+                // 順便套用歷史基準重算
                 if (updated.weight) {
                   const currentW = Number(updated.weight);
                   updated.calories = Math.round(updated.baseCalPerG * currentW);
@@ -463,9 +481,9 @@
             }
             
             const numVal = Number(value);
-            if (field === 'weight' && item.baseCalPerG !== undefined) {
-              updated.calories = Math.round(item.baseCalPerG * numVal);
-              updated.protein = Math.round(item.baseProPerG * numVal * 10) / 10;
+            if (field === 'weight' && updated.baseCalPerG !== undefined) {
+              updated.calories = Math.round(updated.baseCalPerG * numVal);
+              updated.protein = Math.round(updated.baseProPerG * numVal * 10) / 10;
             } else if (field === 'calories' && item.weight) {
               updated.baseCalPerG = numVal / Number(item.weight);
             } else if (field === 'protein' && item.weight) {
@@ -572,7 +590,7 @@
                   <Utensils className="w-5 h-5 text-emerald-600" />
                   飲食紀錄 
                   <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
-                  <span className="text-[10px] text-gray-300 ml-0.5">v1.8</span>
+                  <span className="text-[10px] text-gray-300 ml-0.5">v1.9</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
