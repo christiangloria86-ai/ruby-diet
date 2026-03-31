@@ -60,7 +60,6 @@
       return d.toISOString().split('T')[0];
     };
 
-    // --- 照片無損壓縮機 (解決 1MB 存檔失敗的核心) ---
     const compressImage = (file) => {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -70,7 +69,7 @@
             const canvas = document.createElement('canvas');
             let width = img.width;
             let height = img.height;
-            const MAX_DIM = 800; // 強制將照片最大邊縮小到 800px
+            const MAX_DIM = 800; 
             if (width > height && width > MAX_DIM) {
               height *= MAX_DIM / width;
               width = MAX_DIM;
@@ -82,7 +81,7 @@
             canvas.height = height;
             const ctx = canvas.getContext('2d');
             ctx.drawImage(img, 0, 0, width, height);
-            resolve(canvas.toDataURL('image/jpeg', 0.6)); // 輸出 60% 畫質的 JPEG，大約 50-100KB
+            resolve(canvas.toDataURL('image/jpeg', 0.6)); 
           };
           img.src = event.target.result;
         };
@@ -170,8 +169,8 @@
       }, [user]);
 
       const defaultProfiles = {
-        'Ruby': { gender: 'female', height: 160, weight: 50, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0 },
-        '佑霖': { gender: 'male', height: 175, weight: 70, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0 }
+        'Ruby': { gender: 'female', height: 160, weight: 50, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0, weightHistory: [] },
+        '佑霖': { gender: 'male', height: 175, weight: 70, age: 30, activity: 1.2, targetLoss: 0, targetWeeks: 0, weightHistory: [] }
       };
 
       const [profiles, setProfiles] = useState(defaultProfiles);
@@ -181,7 +180,13 @@
         if (!user) return;
         const profileDocRef = doc(db, 'system_settings', 'shared_profiles');
         const unsubscribe = onSnapshot(profileDocRef, (docSnap) => {
-          if (docSnap.exists()) setProfiles(docSnap.data());
+          if (docSnap.exists()) {
+             const data = docSnap.data();
+             // 確保舊資料也有 weightHistory 陣列
+             if (!data['Ruby'].weightHistory) data['Ruby'].weightHistory = [];
+             if (!data['佑霖'].weightHistory) data['佑霖'].weightHistory = [];
+             setProfiles(data);
+          }
           else setDoc(profileDocRef, defaultProfiles).catch(e => {});
         });
         return () => unsubscribe();
@@ -196,7 +201,31 @@
         } catch (error) { setDbError("設定同步失敗：" + error.message); setIsSavingProfiles(false); }
       };
 
-      // --- 多圖與壓縮狀態 ---
+      // --- 體重追蹤紀錄操作 ---
+      const addWeightLog = () => {
+        const now = new Date();
+        const dateStr = getLocalISODate();
+        const timeStr = now.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const currentWeight = profiles[person].weight;
+
+        setProfiles(prev => {
+          const updated = { ...prev[person] };
+          const history = [...(updated.weightHistory || [])];
+          history.unshift({ id: Date.now().toString(), date: dateStr, time: timeStr, weight: currentWeight });
+          updated.weightHistory = history;
+          return { ...prev, [person]: updated };
+        });
+      };
+
+      const deleteWeightLog = (logId) => {
+        setProfiles(prev => {
+          const updated = { ...prev[person] };
+          updated.weightHistory = (updated.weightHistory || []).filter(item => item.id !== logId);
+          return { ...prev, [person]: updated };
+        });
+      };
+
+      // --- 狀態管理 ---
       const [isAnalyzing, setIsAnalyzing] = useState(false);
       const [isAutoFilling, setIsAutoFilling] = useState(false);
       const [isCompressing, setIsCompressing] = useState(false);
@@ -239,7 +268,6 @@
         setDate(`${year}-${month}-${day}`);
       };
 
-      // --- 處理多圖上傳與壓縮 ---
       const handleImageUpload = async (e) => {
         const files = Array.from(e.target.files);
         if (files.length === 0) return;
@@ -338,7 +366,6 @@
         }
       };
 
-      // --- 手動輸入時的 AI 補全數值 (需求 4) ---
       const autoFillMissingMacros = async () => {
         const activeApiKey = customApiKey.trim() || defaultApiKey;
         if (!activeApiKey) { setErrorMsg('請先設定金鑰才能使用 AI 估算。'); return; }
@@ -378,7 +405,7 @@
                 const w = Number(item.weight) || 100;
                 return {
                   ...item,
-                  weight: item.weight || 100, // 給予預設重量
+                  weight: item.weight || 100, 
                   baseCalPerG: baseCal,
                   baseProPerG: basePro,
                   calories: Math.round(baseCal * w),
@@ -459,13 +486,11 @@
           setCurrentImages([]);
           setUserContext('');
           if (fileInputRef.current) fileInputRef.current.value = '';
-          // 儲存成功不跳警告，直接清空畫面給予明確反饋
         } catch (error) {
           setDbError("寫入失敗，請檢查權限：" + error.message);
         }
       };
 
-      // --- 複製紀錄給對方 (需求 3) ---
       const handleCopyLog = (entry) => {
         const targetPerson = person === 'Ruby' ? '佑霖' : 'Ruby';
         if (pendingItem && !window.confirm("你目前有尚未存檔的紀錄，確定要放棄並覆蓋嗎？")) return;
@@ -474,7 +499,7 @@
         setCurrentImages(entry.images || (entry.image ? [entry.image] : []));
         setPendingItem({
           ...entry,
-          id: Date.now().toString(), // 給予新 ID
+          id: Date.now().toString(), 
           reasoning: `（從 ${person} 複製的紀錄，請微調重量）`
         });
         window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -510,7 +535,7 @@
                   <Utensils className="w-5 h-5 text-emerald-600" />
                   飲食紀錄 
                   <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
-                  <span className="text-[10px] text-gray-300 ml-0.5">v1.6</span>
+                  <span className="text-[10px] text-gray-300 ml-0.5">v1.7</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
@@ -627,11 +652,19 @@
                     </div>
                     <div className="flex-1">
                       <label className="block text-xs font-medium text-gray-500 mb-1.5">體重 (kg)</label>
-                      <input 
-                        type="number" value={profiles[person].weight}
-                        onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], weight: Number(e.target.value)}})}
-                        className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
-                      />
+                      <div className="flex gap-2">
+                        <input 
+                          type="number" value={profiles[person].weight}
+                          onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], weight: Number(e.target.value)}})}
+                          className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                        <button 
+                          onClick={addWeightLog}
+                          className="px-3 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-200 transition-colors shadow-sm shrink-0"
+                        >
+                          紀錄
+                        </button>
+                      </div>
                     </div>
                   </div>
 
@@ -676,6 +709,35 @@
                     </div>
                   </div>
                   
+                  {/* 新增體重紀錄清單 */}
+                  <div className="pt-4 border-t border-gray-100 mt-2">
+                    <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
+                      <Activity className="w-4 h-4 text-emerald-600" /> 體重追蹤紀錄
+                    </h3>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+                      {(!profiles[person].weightHistory || profiles[person].weightHistory.length === 0) ? (
+                        <p className="text-xs text-gray-400 text-center py-4 bg-gray-50 rounded-lg border border-dashed border-gray-200">
+                          調整上方體重後，點按「紀錄」即可追蹤變化
+                        </p>
+                      ) : (
+                        profiles[person].weightHistory.map(log => (
+                          <div key={log.id} className="flex justify-between items-center bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                            <div className="flex flex-col gap-0.5">
+                              <span className="text-sm font-bold text-gray-700">{log.weight} kg</span>
+                              <span className="text-[10px] text-gray-400 font-mono">{log.date} {log.time}</span>
+                            </div>
+                            <button 
+                              onClick={() => deleteWeightLog(log.id)} 
+                              className="p-1.5 text-gray-400 hover:bg-red-50 hover:text-red-500 rounded-md transition-colors"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+
                   <div className="mt-6 p-5 bg-emerald-50 rounded-xl border border-emerald-100 text-center relative overflow-hidden">
                     <div className="absolute top-0 right-0 p-2 opacity-5">
                       <Activity className="w-20 h-20" />
