@@ -119,10 +119,10 @@
       const [tokenUsage, setTokenUsage] = useState(0);
       const DAILY_TOKEN_LIMIT = 20000;
 
-      // 新增：看大圖狀態
+      // 看大圖狀態
       const [viewingImage, setViewingImage] = useState(null);
       
-      // 新增：編輯已存檔紀錄狀態
+      // 編輯已存檔紀錄狀態
       const [editingLogId, setEditingLogId] = useState(null);
       const [editFormData, setEditFormData] = useState([]);
 
@@ -563,9 +563,8 @@
 
       // --- 歷史紀錄編輯功能 ---
       const startEditingLog = (e, entry) => {
-        e.stopPropagation(); // 阻斷卡片收合
+        e.stopPropagation(); 
         setEditingLogId(entry.id);
-        // 深拷貝，避免直接改動原始狀態
         setEditFormData(JSON.parse(JSON.stringify(entry.items)));
         setExpandedLogId(entry.id); 
       };
@@ -648,34 +647,34 @@
             <div className="max-w-md mx-auto flex flex-col gap-3">
               <div className="flex justify-between items-center">
                 <h1 className="text-xl font-bold text-gray-800 flex items-center gap-2 tracking-tight">
-                  <Utensils className="w-5 h-5 text-emerald-600" />
+                  <Utensils className="w-5 h-5 text-[#F596AA]" />
                   飲食紀錄 
-                  <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
-                  <span className="text-[10px] text-gray-300 ml-0.5">v1.11</span>
+                  <span className="text-[10px] bg-[#F596AA]/10 text-[#F596AA] px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
+                  <span className="text-[10px] text-gray-300 ml-0.5">v1.12</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
                   <button 
                     onClick={() => handleTabSwitch('record')}
-                    className={`text-sm font-medium px-4 py-1.5 rounded-full transition-all ${activeTab === 'record' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`text-sm font-medium px-4 py-1.5 rounded-full transition-all ${activeTab === 'record' ? 'bg-white text-[#F596AA] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     紀錄
                   </button>
                   <button 
                     onClick={() => handleTabSwitch('settings')}
-                    className={`text-sm font-medium px-4 py-1.5 rounded-full transition-all ${activeTab === 'settings' ? 'bg-white text-emerald-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+                    className={`text-sm font-medium px-4 py-1.5 rounded-full transition-all ${activeTab === 'settings' ? 'bg-white text-[#F596AA] shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
                   >
                     設定
                   </button>
                 </div>
               </div>
 
-              <div className="flex items-center justify-between bg-emerald-50/50 rounded-lg p-2 border border-emerald-100/50">
-                <div className="flex items-center gap-1.5 text-emerald-700">
+              <div className="flex items-center justify-between bg-[#F596AA]/10 rounded-lg p-2 border border-[#F596AA]/20">
+                <div className="flex items-center gap-1.5 text-[#F596AA]">
                    <Zap className="w-4 h-4" />
                    <span className="text-xs font-bold">API 額度</span>
                 </div>
-                <div className="text-xs font-mono text-emerald-600 bg-white px-2 py-0.5 rounded shadow-sm border border-emerald-100">
+                <div className="text-xs font-mono text-[#F596AA] bg-white px-2 py-0.5 rounded shadow-sm border border-[#F596AA]/20">
                    {tokenUsage.toLocaleString()} / {DAILY_TOKEN_LIMIT.toLocaleString()}
                 </div>
               </div>
@@ -741,7 +740,7 @@
                       <select 
                         value={profiles[person].gender}
                         onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], gender: e.target.value}})}
-                        className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                        className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                       >
                         <option value="male">男</option>
                         <option value="female">女</option>
@@ -752,7 +751,7 @@
                       <input 
                         type="number" value={profiles[person].age}
                         onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], age: Number(e.target.value)}})}
-                        className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                        className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                       />
                     </div>
                   </div>
@@ -763,7 +762,7 @@
                       <input 
                         type="number" value={profiles[person].height}
                         onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], height: Number(e.target.value)}})}
-                        className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                        className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                       />
                     </div>
                     <div className="flex-1">
@@ -772,11 +771,11 @@
                         <input 
                           type="number" value={profiles[person].weight}
                           onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], weight: Number(e.target.value)}})}
-                          className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                          className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                         />
                         <button 
                           onClick={addWeightLog}
-                          className="px-3 bg-emerald-100 text-emerald-700 rounded-xl text-xs font-bold hover:bg-emerald-200 transition-colors shadow-sm shrink-0"
+                          className={`px-3 rounded-xl text-xs font-bold transition-colors shadow-sm shrink-0 ${person === 'Ruby' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-blue-100 text-blue-700 hover:bg-blue-200'}`}
                         >
                           紀錄
                         </button>
@@ -791,7 +790,7 @@
                     <select 
                       value={profiles[person].activity}
                       onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], activity: Number(e.target.value)}})}
-                      className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                      className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                     >
                       <option value={1.2}>久坐 (辦公室工作，幾乎不運動)</option>
                       <option value={1.375}>輕度活動 (每週運動 1-3 天)</option>
@@ -810,7 +809,7 @@
                           type="number" min="0" step="0.5" value={profiles[person].targetLoss || ''}
                           placeholder="0"
                           onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], targetLoss: Number(e.target.value)}})}
-                          className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                          className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                         />
                       </div>
                       <div className="flex-1">
@@ -819,7 +818,7 @@
                           type="number" min="0" value={profiles[person].targetWeeks || ''}
                           placeholder="0"
                           onChange={(e) => setProfiles({...profiles, [person]: {...profiles[person], targetWeeks: Number(e.target.value)}})}
-                          className="w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 focus:ring-emerald-500"
+                          className={`w-full p-2.5 text-sm border border-gray-200 rounded-xl bg-gray-50 outline-none focus:ring-2 ${person === 'Ruby' ? 'focus:ring-emerald-500' : 'focus:ring-blue-500'}`}
                         />
                       </div>
                     </div>
@@ -827,7 +826,7 @@
                   
                   <div className="pt-4 border-t border-gray-100 mt-2">
                     <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
-                      <Activity className="w-4 h-4 text-emerald-600" /> 體重追蹤紀錄
+                      <Activity className={`w-4 h-4 ${person === 'Ruby' ? 'text-emerald-600' : 'text-blue-600'}`} /> 體重追蹤紀錄
                     </h3>
                     <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
                       {(!profiles[person].weightHistory || profiles[person].weightHistory.length === 0) ? (
@@ -853,14 +852,14 @@
                     </div>
                   </div>
 
-                  <div className="mt-6 p-5 bg-emerald-50 rounded-xl border border-emerald-100 text-center relative overflow-hidden">
+                  <div className={`mt-6 p-5 rounded-xl border text-center relative overflow-hidden ${person === 'Ruby' ? 'bg-emerald-50 border-emerald-100' : 'bg-blue-50 border-blue-100'}`}>
                     <div className="absolute top-0 right-0 p-2 opacity-5">
                       <Activity className="w-20 h-20" />
                     </div>
-                    <p className="text-sm font-medium text-emerald-800 mb-1 relative z-10">
+                    <p className={`text-sm font-medium mb-1 relative z-10 ${person === 'Ruby' ? 'text-emerald-800' : 'text-blue-800'}`}>
                       {profiles[person].targetLoss > 0 && profiles[person].targetWeeks > 0 ? '每日建議攝取熱量目標' : '系統試算每日總熱量消耗 (TDEE)'}
                     </p>
-                    <p className="text-3xl font-bold text-emerald-600 relative z-10">{targetData.target} <span className="text-sm font-normal text-emerald-700">kcal / 天</span></p>
+                    <p className={`text-3xl font-bold relative z-10 ${person === 'Ruby' ? 'text-emerald-600' : 'text-blue-600'}`}>{targetData.target} <span className={`text-sm font-normal ${person === 'Ruby' ? 'text-emerald-700' : 'text-blue-700'}`}>kcal / 天</span></p>
                     
                     {targetData.warning ? (
                       <div className="mt-3 p-2 bg-red-50 text-red-600 text-xs rounded-lg border border-red-100 text-left relative z-10">
@@ -868,7 +867,7 @@
                         {targetData.warning}
                       </div>
                     ) : (
-                      <p className="text-xs text-emerald-600/80 mt-2 relative z-10">
+                      <p className={`text-xs mt-2 relative z-10 ${person === 'Ruby' ? 'text-emerald-600/80' : 'text-blue-600/80'}`}>
                         {profiles[person].targetLoss > 0 && profiles[person].targetWeeks > 0 
                           ? `已從 TDEE (${targetData.tdee} kcal) 扣除每日應減缺口` 
                           : 'Mifflin-St Jeor 公式計算'
@@ -881,7 +880,7 @@
                     onClick={saveProfilesToCloud}
                     className="w-full mt-4 py-3 bg-gray-800 hover:bg-gray-900 text-white rounded-xl font-bold flex items-center justify-center gap-2 transition-all shadow-sm"
                   >
-                    {isSavingProfiles ? <Check className="w-5 h-5 text-emerald-400" /> : <Settings className="w-5 h-5" />}
+                    {isSavingProfiles ? <Check className={`w-5 h-5 ${person === 'Ruby' ? 'text-emerald-400' : 'text-blue-400'}`} /> : <Settings className="w-5 h-5" />}
                     {isSavingProfiles ? '設定已同步至雲端' : '同步儲存以上設定'}
                   </button>
                 </div>
@@ -890,6 +889,7 @@
               <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 relative">
                   
+                  {/* 若有未存檔紀錄，在頂部顯示警告 */}
                   {pendingItem && (
                     <div className="absolute -top-3 inset-x-4 bg-orange-100 border border-orange-200 text-orange-800 text-xs font-bold py-1 px-3 rounded-full text-center shadow-sm z-10 animate-bounce">
                       ⚠️ 您有一筆尚未存檔的紀錄
@@ -982,12 +982,14 @@
 
                 <div className={`bg-white rounded-2xl p-6 shadow-sm border ${pendingItem ? 'border-orange-300 ring-4 ring-orange-50' : 'border-gray-100'} relative overflow-hidden transition-all`}>
                   
+                  {/* 背景圖示 */}
                   {currentImages.length === 0 && !pendingItem && (
                      <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
                        <User className="w-24 h-24" />
                      </div>
                   )}
 
+                  {/* 允許多圖上傳 */}
                   <input 
                     type="file" 
                     accept="image/*" 
@@ -1026,6 +1028,7 @@
 
                   {currentImages.length > 0 && !isAnalyzing && !pendingItem && !isCompressing && (
                     <div className="space-y-4 animate-in fade-in zoom-in duration-200">
+                      {/* 多圖畫廊 */}
                       <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
                         {currentImages.map((img, idx) => (
                            <div key={idx} className="relative h-32 min-w-[8rem] rounded-xl overflow-hidden bg-gray-100 snap-center shrink-0 border border-gray-200 cursor-zoom-in" onClick={() => setViewingImage(img)}>
@@ -1098,6 +1101,7 @@
                   {pendingItem && !isAnalyzing && (
                     <div className="space-y-4 animate-in fade-in zoom-in duration-200">
                       
+                      {/* 顯示多張照片 */}
                       {pendingItem.images && pendingItem.images.length > 0 ? (
                         <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
                           {pendingItem.images.map((img, idx) => (
@@ -1201,6 +1205,7 @@
                           <Plus className="w-4 h-4" /> 新增品項
                         </button>
                         
+                        {/* 需求 4：AI 估算缺失數值 */}
                         <button 
                           onClick={autoFillMissingMacros}
                           disabled={isAutoFilling}
@@ -1271,6 +1276,7 @@
                       const isExpanded = expandedLogId === entry.id;
                       const isEditing = editingLogId === entry.id;
                       
+                      // 支援舊版單圖結構與新版多圖結構
                       const entryFirstImage = (entry.images && entry.images.length > 0) ? entry.images[0] : entry.image;
                       
                       return (
@@ -1331,7 +1337,7 @@
                             </div>
                             <div className="flex items-center gap-3 text-sm font-medium">
                               <span className="text-gray-500">{isEditing ? editFormData.reduce((s, i) => s + Number(i.calories || 0), 0) : entryCalories} kcal</span>
-                              <span className="text-blue-600">{isEditing ? Math.round(editFormData.reduce((s, i) => s + Number(i.protein || 0), 0) * 10)/10 : Math.round(entryProtein * 10)/10}g 蛋白質</span>
+                              <span className={person === 'Ruby' ? 'text-emerald-600' : 'text-blue-600'}>{isEditing ? Math.round(editFormData.reduce((s, i) => s + Number(i.protein || 0), 0) * 10)/10 : Math.round(entryProtein * 10)/10}g 蛋白質</span>
                             </div>
                             <div className="text-xs text-gray-400 mt-1 truncate flex items-center gap-1">
                               <span>共 {isEditing ? editFormData.length : entry.items.length} 個品項</span>
@@ -1396,7 +1402,7 @@
                                           type="number" 
                                           value={item.protein}
                                           onChange={(e) => handleEditChange(idx, 'protein', e.target.value)}
-                                          className="w-full text-sm font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 text-center outline-none"
+                                          className={`w-full text-sm font-bold rounded px-1 text-center outline-none ${person === 'Ruby' ? 'text-emerald-600 bg-emerald-50 border-emerald-100' : 'text-blue-600 bg-blue-50 border-blue-100'}`}
                                         />
                                       </div>
                                     </div>
@@ -1415,7 +1421,7 @@
                                     <span className="font-bold text-gray-700">{item.name} <span className="text-gray-400 font-normal ml-1">{item.weight}g</span></span>
                                     <div className="flex items-center gap-3 font-medium">
                                       <span className="text-orange-600">{item.calories} <span className="text-[10px] text-gray-400 font-normal">kcal</span></span>
-                                      <span className="text-blue-600 w-12 text-right">{item.protein} <span className="text-[10px] text-blue-400 font-normal">g</span></span>
+                                      <span className={`w-12 text-right ${person === 'Ruby' ? 'text-emerald-600' : 'text-blue-600'}`}>{item.protein} <span className={`text-[10px] font-normal ${person === 'Ruby' ? 'text-emerald-400' : 'text-blue-400'}`}>g</span></span>
                                     </div>
                                   </div>
                                 ))}
