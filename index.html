@@ -44,10 +44,10 @@
   <script type="text/babel" data-type="module">
     import React, { useState, useRef, useEffect, useMemo } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Camera, Plus, Edit2, Check, X, AlertCircle, Utensils, Calendar, User, Clock, Settings, Activity, ChevronLeft, ChevronRight, Zap, Trash2, Key, ChevronDown, ChevronUp, Copy, Sparkles, Loader2 } from 'lucide-react';
+    import { Camera, Plus, Edit2, Check, X, AlertCircle, Utensils, Calendar, User, Clock, Settings, Activity, ChevronLeft, ChevronRight, Zap, Trash2, Key, ChevronDown, ChevronUp, Copy, Sparkles, Loader2, Save } from 'lucide-react';
     import { initializeApp } from 'firebase/app';
     import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-    import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
+    import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, updateDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
 
     const safeStorage = {
       get: (key) => { try { return localStorage.getItem(key); } catch (e) { return null; } },
@@ -119,6 +119,13 @@
       const [tokenUsage, setTokenUsage] = useState(0);
       const DAILY_TOKEN_LIMIT = 20000;
 
+      // 新增：看大圖狀態
+      const [viewingImage, setViewingImage] = useState(null);
+      
+      // 新增：編輯已存檔紀錄狀態
+      const [editingLogId, setEditingLogId] = useState(null);
+      const [editFormData, setEditFormData] = useState([]);
+
       useEffect(() => {
         const todayStr = getLocalISODate();
         const storedStr = safeStorage.get('dietTrackerTokenUsage');
@@ -171,7 +178,6 @@
       // --- 建立歷史食物庫 (供自動帶入與選單使用) ---
       const foodHistoryDB = useMemo(() => {
         const history = {};
-        // dailyLog 已照時間排序 (舊->新)，後面的資料會覆蓋前面的，確保採用最新數據
         dailyLog.forEach(log => {
           log.items.forEach(item => {
             if (item.name && item.name.trim()) {
@@ -180,7 +186,6 @@
               let bCal = item.baseCalPerG;
               let bPro = item.baseProPerG;
               
-              // 處理舊版手動輸入沒有 baseCalPerG 的資料 (溯及既往)
               if (bCal === undefined || isNaN(bCal)) {
                 bCal = w > 0 ? (Number(item.calories) || 0) / w : 0;
                 bPro = w > 0 ? (Number(item.protein) || 0) / w : 0;
@@ -189,7 +194,7 @@
               history[trimmedName] = {
                 baseCalPerG: bCal,
                 baseProPerG: bPro,
-                lastWeight: w > 0 ? w : 100 // 紀錄上次吃的重量供智慧預設使用
+                lastWeight: w > 0 ? w : 100 
               };
             }
           });
@@ -252,7 +257,6 @@
         });
       };
 
-      // --- 狀態管理 ---
       const [isAnalyzing, setIsAnalyzing] = useState(false);
       const [isAutoFilling, setIsAutoFilling] = useState(false);
       const [isCompressing, setIsCompressing] = useState(false);
@@ -459,19 +463,16 @@
             const updated = { ...item, [field]: value };
             if (value === '') return updated;
             
-            // 如果修改的是名稱，檢查歷史紀錄是否有符合的
             if (field === 'name') {
               const trimmedName = value.trim();
               if (foodHistoryDB[trimmedName]) {
                 updated.baseCalPerG = foodHistoryDB[trimmedName].baseCalPerG;
                 updated.baseProPerG = foodHistoryDB[trimmedName].baseProPerG;
                 
-                // 智慧預設：若重量為空，自動帶入上次紀錄的重量，讓數字直接浮現
                 if (!updated.weight) {
                   updated.weight = foodHistoryDB[trimmedName].lastWeight;
                 }
 
-                // 順便套用歷史基準重算
                 if (updated.weight) {
                   const currentW = Number(updated.weight);
                   updated.calories = Math.round(updated.baseCalPerG * currentW);
@@ -555,8 +556,47 @@
 
       const deleteLog = async (logId) => {
         if (!user) return;
+        if (!window.confirm("確定要刪除這筆紀錄嗎？")) return;
         try { await deleteDoc(doc(db, 'diet_logs', logId)); } 
         catch (error) { setDbError("刪除權限遭拒：" + error.message); }
+      };
+
+      // --- 歷史紀錄編輯功能 ---
+      const startEditingLog = (e, entry) => {
+        e.stopPropagation(); // 阻斷卡片收合
+        setEditingLogId(entry.id);
+        // 深拷貝，避免直接改動原始狀態
+        setEditFormData(JSON.parse(JSON.stringify(entry.items)));
+        setExpandedLogId(entry.id); 
+      };
+
+      const handleEditChange = (index, field, value) => {
+        const newItems = [...editFormData];
+        newItems[index][field] = value;
+        
+        if (value !== '') {
+          const numVal = Number(value);
+          if (field === 'weight' && newItems[index].baseCalPerG !== undefined) {
+             newItems[index].calories = Math.round(newItems[index].baseCalPerG * numVal);
+             newItems[index].protein = Math.round(newItems[index].baseProPerG * numVal * 10) / 10;
+          } else if (field === 'calories' && newItems[index].weight) {
+             newItems[index].baseCalPerG = numVal / Number(newItems[index].weight);
+          } else if (field === 'protein' && newItems[index].weight) {
+             newItems[index].baseProPerG = numVal / Number(newItems[index].weight);
+          }
+        }
+        setEditFormData(newItems);
+      };
+
+      const saveEditLog = async (e, logId) => {
+        e.stopPropagation();
+        if (!user) return;
+        try {
+          await updateDoc(doc(db, 'diet_logs', logId), { items: editFormData });
+          setEditingLogId(null);
+        } catch (error) {
+          setDbError("更新紀錄失敗：" + error.message);
+        }
       };
 
       const cancelItem = () => {
@@ -575,8 +615,29 @@
       };
 
       return (
-        <div className="min-h-screen bg-gray-50 text-gray-800 font-sans pb-20">
-          {/* 提供歷史食物名稱的 DataList */}
+        <div className="min-h-screen bg-gray-50 text-gray-800 font-sans pb-20 relative">
+          
+          {/* 大圖預覽遮罩 (Lightbox) */}
+          {viewingImage && (
+            <div 
+              className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 p-4 animate-in fade-in duration-200" 
+              onClick={() => setViewingImage(null)}
+            >
+              <button 
+                className="absolute top-6 right-6 text-white/70 hover:text-white p-2 transition-colors"
+                onClick={() => setViewingImage(null)}
+              >
+                <X className="w-8 h-8" />
+              </button>
+              <img 
+                src={viewingImage} 
+                alt="Enlarged food" 
+                className="max-w-full max-h-full object-contain rounded-lg shadow-2xl" 
+                onClick={(e) => e.stopPropagation()} 
+              />
+            </div>
+          )}
+
           <datalist id="food-history-list">
             {Object.keys(foodHistoryDB).map(name => (
               <option key={name} value={name} />
@@ -590,7 +651,7 @@
                   <Utensils className="w-5 h-5 text-emerald-600" />
                   飲食紀錄 
                   <span className="text-[10px] bg-emerald-100 text-emerald-700 px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
-                  <span className="text-[10px] text-gray-300 ml-0.5">v1.9</span>
+                  <span className="text-[10px] text-gray-300 ml-0.5">v1.11</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
@@ -764,7 +825,6 @@
                     </div>
                   </div>
                   
-                  {/* 新增體重紀錄清單 */}
                   <div className="pt-4 border-t border-gray-100 mt-2">
                     <h3 className="text-sm font-bold text-gray-800 mb-3 flex items-center gap-2">
                       <Activity className="w-4 h-4 text-emerald-600" /> 體重追蹤紀錄
@@ -830,7 +890,6 @@
               <div className="space-y-5 animate-in fade-in zoom-in-95 duration-200">
                 <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 relative">
                   
-                  {/* 若有未存檔紀錄，在頂部顯示警告 */}
                   {pendingItem && (
                     <div className="absolute -top-3 inset-x-4 bg-orange-100 border border-orange-200 text-orange-800 text-xs font-bold py-1 px-3 rounded-full text-center shadow-sm z-10 animate-bounce">
                       ⚠️ 您有一筆尚未存檔的紀錄
@@ -923,14 +982,12 @@
 
                 <div className={`bg-white rounded-2xl p-6 shadow-sm border ${pendingItem ? 'border-orange-300 ring-4 ring-orange-50' : 'border-gray-100'} relative overflow-hidden transition-all`}>
                   
-                  {/* 背景圖示 */}
                   {currentImages.length === 0 && !pendingItem && (
                      <div className="absolute top-0 right-0 p-3 opacity-10 pointer-events-none">
                        <User className="w-24 h-24" />
                      </div>
                   )}
 
-                  {/* 允許多圖上傳 */}
                   <input 
                     type="file" 
                     accept="image/*" 
@@ -969,10 +1026,9 @@
 
                   {currentImages.length > 0 && !isAnalyzing && !pendingItem && !isCompressing && (
                     <div className="space-y-4 animate-in fade-in zoom-in duration-200">
-                      {/* 多圖畫廊 */}
                       <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
                         {currentImages.map((img, idx) => (
-                           <div key={idx} className="relative h-32 min-w-[8rem] rounded-xl overflow-hidden bg-gray-100 snap-center shrink-0 border border-gray-200">
+                           <div key={idx} className="relative h-32 min-w-[8rem] rounded-xl overflow-hidden bg-gray-100 snap-center shrink-0 border border-gray-200 cursor-zoom-in" onClick={() => setViewingImage(img)}>
                              <img src={img} alt="Preview" className="w-full h-full object-cover" />
                              {idx === 0 && (
                                <div className="absolute top-1 left-1 flex flex-col gap-1">
@@ -1038,15 +1094,14 @@
                     </div>
                   )}
 
-                  {/* --- 編輯區塊 --- */}
+                  {/* --- 草稿編輯區塊 --- */}
                   {pendingItem && !isAnalyzing && (
                     <div className="space-y-4 animate-in fade-in zoom-in duration-200">
                       
-                      {/* 顯示多張照片 */}
                       {pendingItem.images && pendingItem.images.length > 0 ? (
                         <div className="flex gap-2 overflow-x-auto pb-2 snap-x">
                           {pendingItem.images.map((img, idx) => (
-                             <div key={idx} className="relative h-32 min-w-[8rem] rounded-xl overflow-hidden bg-gray-100 snap-center shrink-0 border border-gray-200">
+                             <div key={idx} className="relative h-32 min-w-[8rem] rounded-xl overflow-hidden bg-gray-100 snap-center shrink-0 border border-gray-200 cursor-zoom-in" onClick={() => setViewingImage(img)}>
                                <img src={img} alt="Uploaded food" className="w-full h-full object-cover" />
                                {idx === 0 && (
                                  <div className="absolute top-1 left-1 flex flex-col gap-1">
@@ -1062,8 +1117,8 @@
                            <Edit2 className="w-6 h-6 text-gray-400 mb-1" />
                            <span className="text-sm font-medium text-gray-500">手動建立紀錄</span>
                            <div className="absolute top-2 left-2 flex gap-1">
-                             <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-md font-medium">{person}</span>
-                             <span className="bg-emerald-100 text-emerald-700 text-xs px-2 py-1 rounded-md font-medium">{meal}</span>
+                             <span className={`text-xs px-2 py-1 rounded-md font-medium ${person === 'Ruby' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{person}</span>
+                             <span className={`text-xs px-2 py-1 rounded-md font-medium ${person === 'Ruby' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>{meal}</span>
                           </div>
                         </div>
                       )}
@@ -1212,45 +1267,57 @@
                       const entryCalories = entry.items.reduce((s, i) => s + Number(i.calories || 0), 0);
                       const entryProtein = entry.items.reduce((s, i) => s + Number(i.protein || 0), 0);
                       const itemNames = entry.items.map(i => i.name).join('、');
-                      const isExpanded = expandedLogId === entry.id;
                       
-                      // 支援舊版單圖結構與新版多圖結構
+                      const isExpanded = expandedLogId === entry.id;
+                      const isEditing = editingLogId === entry.id;
+                      
                       const entryFirstImage = (entry.images && entry.images.length > 0) ? entry.images[0] : entry.image;
                       
                       return (
                       <div 
                         key={entry.id} 
-                        onClick={() => setExpandedLogId(isExpanded ? null : entry.id)}
-                        className="bg-white p-4 rounded-xl shadow-sm border border-gray-100 relative group cursor-pointer hover:border-emerald-200 transition-all"
+                        onClick={() => { if(!isEditing) setExpandedLogId(isExpanded ? null : entry.id); }}
+                        className={`bg-white p-4 rounded-xl shadow-sm border relative group transition-all ${isEditing ? 'border-emerald-300 ring-2 ring-emerald-50 cursor-default' : 'border-gray-100 cursor-pointer hover:border-emerald-200'}`}
                       >
-                        {/* 複製給對方的按鈕 */}
-                        <div className="absolute top-3 right-3 flex gap-2 z-10 opacity-0 group-hover:opacity-100 transition-all">
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); handleCopyLog(entry); }}
-                             className="p-1.5 bg-blue-50 text-blue-600 hover:bg-blue-100 rounded-md shadow-sm flex items-center gap-1"
-                             title={`複製這餐給 ${person === 'Ruby' ? '佑霖' : 'Ruby'}`}
-                           >
-                             <Copy className="w-3 h-3" />
-                             <span className="text-[10px] font-bold">複製給{person === 'Ruby' ? '佑霖' : 'Ruby'}</span>
-                           </button>
-                           <button 
-                             onClick={(e) => { e.stopPropagation(); deleteLog(entry.id); }}
-                             className="p-1.5 bg-red-50 text-red-500 hover:bg-red-100 rounded-md shadow-sm"
-                             title="刪除此紀錄"
-                           >
-                             <Trash2 className="w-4 h-4" />
-                           </button>
-                        </div>
+                        {/* 動作按鈕群 */}
+                        {!isEditing && (
+                          <div className="absolute top-3 right-3 flex gap-1 z-10 opacity-0 group-hover:opacity-100 transition-all">
+                             <button 
+                               onClick={(e) => startEditingLog(e, entry)}
+                               className="p-1.5 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-md shadow-sm"
+                               title="編輯此紀錄"
+                             >
+                               <Edit2 className="w-4 h-4" />
+                             </button>
+                             <button 
+                               onClick={(e) => { e.stopPropagation(); handleCopyLog(entry); }}
+                               className="p-1.5 text-blue-400 hover:bg-blue-50 hover:text-blue-600 rounded-md shadow-sm"
+                               title={`複製這餐給 ${person === 'Ruby' ? '佑霖' : 'Ruby'}`}
+                             >
+                               <Copy className="w-4 h-4" />
+                             </button>
+                             <button 
+                               onClick={(e) => { e.stopPropagation(); deleteLog(entry.id); }}
+                               className="p-1.5 text-red-400 hover:bg-red-50 hover:text-red-500 rounded-md shadow-sm"
+                               title="刪除此紀錄"
+                             >
+                               <Trash2 className="w-4 h-4" />
+                             </button>
+                          </div>
+                        )}
                         
                         <div className="flex items-center gap-4">
-                          <div className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-50 flex items-center justify-center border border-gray-100 relative">
+                          <div 
+                            className="w-16 h-16 rounded-lg overflow-hidden shrink-0 bg-gray-50 flex items-center justify-center border border-gray-100 relative cursor-zoom-in"
+                            onClick={(e) => { if(entryFirstImage) { e.stopPropagation(); setViewingImage(entryFirstImage); } }}
+                          >
                             {entryFirstImage ? (
                               <img src={entryFirstImage} alt="food" className="w-full h-full object-cover" />
                             ) : (
                               <Utensils className="w-6 h-6 text-gray-300" />
                             )}
                             {entry.images && entry.images.length > 1 && (
-                               <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded-sm backdrop-blur">
+                               <div className="absolute bottom-1 right-1 bg-black/60 text-white text-[10px] px-1 rounded-sm backdrop-blur pointer-events-none">
                                  +{entry.images.length - 1}
                                </div>
                             )}
@@ -1263,42 +1330,99 @@
                               <h4 className="font-bold text-gray-800 truncate text-sm">{itemNames || '未命名項目'}</h4>
                             </div>
                             <div className="flex items-center gap-3 text-sm font-medium">
-                              <span className="text-gray-500">{entryCalories} kcal</span>
-                              <span className="text-blue-600">{Math.round(entryProtein * 10)/10}g 蛋白質</span>
+                              <span className="text-gray-500">{isEditing ? editFormData.reduce((s, i) => s + Number(i.calories || 0), 0) : entryCalories} kcal</span>
+                              <span className="text-blue-600">{isEditing ? Math.round(editFormData.reduce((s, i) => s + Number(i.protein || 0), 0) * 10)/10 : Math.round(entryProtein * 10)/10}g 蛋白質</span>
                             </div>
                             <div className="text-xs text-gray-400 mt-1 truncate flex items-center gap-1">
-                              <span>共 {entry.items.length} 個品項</span>
-                              {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              <span>共 {isEditing ? editFormData.length : entry.items.length} 個品項</span>
+                              {!isEditing && (isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
                             </div>
                           </div>
                         </div>
 
-                        {/* 展開後的詳細內容區塊 */}
+                        {/* 展開區塊 */}
                         {isExpanded && (
-                          <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
+                          <div className="mt-4 pt-4 border-t border-gray-100 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200 cursor-default" onClick={(e) => e.stopPropagation()}>
                             
                             {/* 若有多張圖，展開時顯示小畫廊 */}
                             {entry.images && entry.images.length > 1 && (
-                               <div className="flex gap-2 overflow-x-auto pb-2 mb-2">
+                               <div className="flex gap-2 overflow-x-auto pb-2 mb-2 snap-x">
                                  {entry.images.map((img, idx) => (
-                                    <img key={idx} src={img} className="h-16 w-16 object-cover rounded-lg border border-gray-200 shrink-0" />
+                                    <img 
+                                      key={idx} 
+                                      src={img} 
+                                      className="h-16 w-16 object-cover rounded-lg border border-gray-200 shrink-0 snap-center cursor-zoom-in" 
+                                      onClick={(e) => { e.stopPropagation(); setViewingImage(img); }}
+                                    />
                                  ))}
                                </div>
                             )}
 
-                            <div className="space-y-2">
-                              {entry.items.map((item, idx) => (
-                                <div key={idx} className="flex justify-between items-center text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
-                                  <span className="font-bold text-gray-700">{item.name} <span className="text-gray-400 font-normal ml-1">{item.weight}g</span></span>
-                                  <div className="flex items-center gap-3 font-medium">
-                                    <span className="text-orange-600">{item.calories} <span className="text-[10px] text-gray-400 font-normal">kcal</span></span>
-                                    <span className="text-blue-600 w-12 text-right">{item.protein} <span className="text-[10px] text-blue-400 font-normal">g</span></span>
+                            {/* --- 編輯模式 UI --- */}
+                            {isEditing ? (
+                              <div className="space-y-3 bg-gray-50 p-3 rounded-xl border border-emerald-100">
+                                {editFormData.map((item, idx) => (
+                                  <div key={idx} className="bg-white p-2 rounded-lg border border-gray-200 shadow-sm">
+                                    <div className="mb-2">
+                                      <input 
+                                        type="text" 
+                                        value={item.name}
+                                        onChange={(e) => handleEditChange(idx, 'name', e.target.value)}
+                                        className="w-full text-sm font-bold text-gray-800 outline-none bg-transparent"
+                                      />
+                                    </div>
+                                    <div className="grid grid-cols-3 gap-2">
+                                      <div>
+                                        <label className="block text-[10px] text-gray-400">重量(g)</label>
+                                        <input 
+                                          type="number" 
+                                          value={item.weight}
+                                          onChange={(e) => handleEditChange(idx, 'weight', e.target.value)}
+                                          className="w-full text-sm font-bold text-gray-700 bg-gray-50 border border-gray-100 rounded px-1 text-center outline-none"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-gray-400">熱量</label>
+                                        <input 
+                                          type="number" 
+                                          value={item.calories}
+                                          onChange={(e) => handleEditChange(idx, 'calories', e.target.value)}
+                                          className="w-full text-sm font-bold text-orange-600 bg-orange-50 border border-orange-100 rounded px-1 text-center outline-none"
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-[10px] text-gray-400">蛋白質</label>
+                                        <input 
+                                          type="number" 
+                                          value={item.protein}
+                                          onChange={(e) => handleEditChange(idx, 'protein', e.target.value)}
+                                          className="w-full text-sm font-bold text-blue-600 bg-blue-50 border border-blue-100 rounded px-1 text-center outline-none"
+                                        />
+                                      </div>
+                                    </div>
                                   </div>
+                                ))}
+                                <div className="flex gap-2 pt-2">
+                                  <button onClick={(e) => { e.stopPropagation(); setEditingLogId(null); }} className="flex-1 py-2 bg-gray-200 text-gray-600 rounded-lg text-xs font-bold">取消編輯</button>
+                                  <button onClick={(e) => saveEditLog(e, entry.id)} className="flex-[2] py-2 bg-emerald-500 text-white rounded-lg text-xs font-bold flex items-center justify-center gap-1"><Save className="w-3 h-3" /> 儲存變更</button>
                                 </div>
-                              ))}
-                            </div>
+                              </div>
+                            ) : (
+                              /* --- 檢視模式 UI --- */
+                              <div className="space-y-2">
+                                {entry.items.map((item, idx) => (
+                                  <div key={idx} className="flex justify-between items-center text-xs bg-gray-50 p-2.5 rounded-lg border border-gray-100">
+                                    <span className="font-bold text-gray-700">{item.name} <span className="text-gray-400 font-normal ml-1">{item.weight}g</span></span>
+                                    <div className="flex items-center gap-3 font-medium">
+                                      <span className="text-orange-600">{item.calories} <span className="text-[10px] text-gray-400 font-normal">kcal</span></span>
+                                      <span className="text-blue-600 w-12 text-right">{item.protein} <span className="text-[10px] text-blue-400 font-normal">g</span></span>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
                             
-                            {entry.reasoning && (
+                            {entry.reasoning && !isEditing && (
                               <div className="bg-emerald-50/50 p-3 rounded-lg border border-emerald-100/50 mt-2">
                                 <span className="text-[10px] font-bold text-emerald-800 flex items-center gap-1 mb-1">
                                   <Activity className="w-3 h-3" /> 備註 / AI 估算依據
