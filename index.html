@@ -44,7 +44,7 @@
   <script type="text/babel" data-type="module">
     import React, { useState, useRef, useEffect, useMemo } from 'react';
     import { createRoot } from 'react-dom/client';
-    import { Camera, Plus, Edit2, Check, X, AlertCircle, Utensils, Calendar, User, Clock, Settings, Activity, ChevronLeft, ChevronRight, Zap, Trash2, Key, ChevronDown, ChevronUp, Copy, Sparkles, Loader2, Save } from 'lucide-react';
+    import { Camera, Plus, Edit2, Check, X, AlertCircle, Utensils, Calendar, User, Clock, Settings, Activity, ChevronLeft, ChevronRight, Zap, Trash2, Key, ChevronDown, ChevronUp, Copy, Sparkles, Loader2, Save, Cpu } from 'lucide-react';
     import { initializeApp } from 'firebase/app';
     import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
     import { getFirestore, collection, onSnapshot, addDoc, deleteDoc, updateDoc, doc, serverTimestamp, setDoc } from 'firebase/firestore';
@@ -111,6 +111,9 @@
       const [dbError, setDbError] = useState(''); 
       const [customApiKey, setCustomApiKey] = useState('');
       
+      // 新增：AI 模型選擇狀態
+      const [selectedModel, setSelectedModel] = useState('gemini-2.5-flash');
+      
       const [person, setPerson] = useState('Ruby');
       const [date, setDate] = useState(getLocalISODate());
       const [meal, setMeal] = useState('午餐'); 
@@ -129,13 +132,22 @@
         const storedData = storedStr ? JSON.parse(storedStr) : {};
         if (storedData.date === todayStr) setTokenUsage(storedData.usage || 0);
         else { safeStorage.set('dietTrackerTokenUsage', JSON.stringify({ date: todayStr, usage: 0 })); setTokenUsage(0); }
+        
         const savedApiKey = safeStorage.get('dietTrackerApiKey');
         if (savedApiKey) setCustomApiKey(savedApiKey);
+
+        const savedModel = safeStorage.get('dietTrackerModel');
+        if (savedModel) setSelectedModel(savedModel);
       }, []);
 
       const handleSaveApiKey = (key) => {
         setCustomApiKey(key);
         safeStorage.set('dietTrackerApiKey', key);
+      };
+
+      const handleModelChange = (modelName) => {
+        setSelectedModel(modelName);
+        safeStorage.set('dietTrackerModel', modelName);
       };
 
       useEffect(() => {
@@ -311,7 +323,7 @@
         }
       };
 
-      // --- 核心升級：涵蓋 429 錯誤的指數退避重試機制 ---
+      // --- 核心升級：涵蓋動態模型的指數退避重試機制 ---
       const analyzeImage = async () => {
         const activeApiKey = customApiKey.trim() || defaultApiKey;
         if (!activeApiKey) { setErrorMsg('請先至「設定」輸入金鑰。'); return; }
@@ -345,13 +357,13 @@
         while (retryCount <= maxRetries && !success) {
           try {
             if (retryCount > 0) {
-              // 指數退避：5s, 10s, 20s, 40s
               const waitTime = Math.pow(2, retryCount - 1) * 5000; 
               setErrorMsg(`觸發 API 頻率限制 (429/503)，系統將於 ${Math.round(waitTime/1000)} 秒後自動重試 (第 ${retryCount} 次)...`);
               await new Promise(r => setTimeout(r, waitTime)); 
             }
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeApiKey}`, {
+            // 使用動態選擇的模型
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${activeApiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -362,7 +374,7 @@
 
             if (!response.ok) {
               if (response.status === 503 || response.status === 429) {
-                if (retryCount === maxRetries) throw new Error(`已達最大重試次數 (${response.status})，請稍後手動重試。`);
+                if (retryCount === maxRetries) throw new Error(`已達最大重試次數 (${response.status})，請至設定分頁切換其他 AI 模型試試。`);
                 retryCount++;
                 continue; 
               }
@@ -370,6 +382,7 @@
               try { const errorData = await response.json(); errorDetail = errorData.error?.message; } catch(e){}
               if (response.status === 400) throw new Error(`請求遭拒，請確認金鑰未夾帶空白。細節：${errorDetail}`);
               if (response.status === 403) throw new Error(`權限遭拒，請確認使用的是 AI Studio 金鑰。細節：${errorDetail}`);
+              if (response.status === 404) throw new Error(`找不到資源 (404)。你選擇的模型可能已被停用，請至設定分頁切換其他模型。`);
               throw new Error(`連線失敗 (${response.status}): ${errorDetail}`);
             }
 
@@ -451,7 +464,7 @@
               await new Promise(r => setTimeout(r, waitTime));
             }
 
-            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${activeApiKey}`, {
+            const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${selectedModel}:generateContent?key=${activeApiKey}`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
@@ -462,7 +475,7 @@
 
             if (!response.ok) {
               if (response.status === 503 || response.status === 429) {
-                if (retryCount === maxRetries) throw new Error(`已達最大重試次數 (${response.status})，請稍後手動重試。`);
+                if (retryCount === maxRetries) throw new Error(`已達最大重試次數 (${response.status})，請至設定切換其他模型。`);
                 retryCount++;
                 continue;
               }
@@ -705,7 +718,7 @@
                   <Utensils className="w-5 h-5 text-[#F596AA]" />
                   飲食紀錄 
                   <span className="text-[10px] bg-[#F596AA]/10 text-[#F596AA] px-1.5 py-0.5 rounded font-bold ml-1">雲端版</span>
-                  <span className="text-[10px] text-gray-300 ml-0.5">v1.14</span>
+                  <span className="text-[10px] text-gray-300 ml-0.5">v1.15</span>
                 </h1>
                 
                 <div className="flex bg-gray-100 p-1 rounded-full">
@@ -750,23 +763,41 @@
             {activeTab === 'settings' ? (
               <div className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-5 animate-in fade-in zoom-in-95 duration-200">
                 
-                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl">
-                  <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-2">
-                    <Key className="w-4 h-4 text-emerald-600" /> API 金鑰設定
-                  </h3>
-                  <p className="text-xs text-gray-500 mb-3">此金鑰僅會儲存於您當前設備的瀏覽器中，不會上傳至任何伺服器。若清除瀏覽器資料需重新輸入。</p>
-                  <input 
-                    type="password" 
-                    value={customApiKey}
-                    placeholder="請至 aistudio.google.com 申請，勿填 Firebase 金鑰"
-                    onChange={(e) => handleSaveApiKey(e.target.value)}
-                    className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono"
-                  />
-                  {!customApiKey && !defaultApiKey && (
-                    <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
-                      <AlertCircle className="w-3 h-3" /> 目前無有效金鑰，無法進行照片辨識。
-                    </p>
-                  )}
+                <div className="p-4 bg-gray-50 border border-gray-200 rounded-xl space-y-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-2">
+                      <Key className="w-4 h-4 text-emerald-600" /> API 金鑰設定
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-3">此金鑰僅會儲存於當前設備，不會上傳雲端。</p>
+                    <input 
+                      type="password" 
+                      value={customApiKey}
+                      placeholder="請填入 Google AI Studio 金鑰"
+                      onChange={(e) => handleSaveApiKey(e.target.value)}
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent font-mono"
+                    />
+                    {!customApiKey && !defaultApiKey && (
+                      <p className="text-xs text-red-500 mt-2 flex items-center gap-1">
+                        <AlertCircle className="w-3 h-3" /> 目前無有效金鑰，無法進行照片辨識。
+                      </p>
+                    )}
+                  </div>
+                  
+                  <div className="pt-3 border-t border-gray-200">
+                    <h3 className="text-sm font-bold text-gray-800 flex items-center gap-2 mb-2">
+                      <Cpu className="w-4 h-4 text-emerald-600" /> AI 模型選擇
+                    </h3>
+                    <p className="text-xs text-gray-500 mb-3">若辨識頻繁出現 429 錯誤，請切換至舊版模型以獲得更高的免費額度。</p>
+                    <select 
+                      value={selectedModel}
+                      onChange={(e) => handleModelChange(e.target.value)}
+                      className="w-full p-2.5 text-sm border border-gray-300 rounded-lg bg-white outline-none focus:ring-2 focus:ring-emerald-500 font-medium text-gray-700"
+                    >
+                      <option value="gemini-2.5-flash">Gemini 2.5 Flash (最新 / 額度極低)</option>
+                      <option value="gemini-2.0-flash">Gemini 2.0 Flash (穩定版)</option>
+                      <option value="gemini-1.5-flash">Gemini 1.5 Flash (高額度 / 推薦)</option>
+                    </select>
+                  </div>
                 </div>
 
                 <h2 className="font-bold text-gray-800 flex items-center gap-2 pt-2 border-t border-gray-100">
